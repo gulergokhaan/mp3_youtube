@@ -9,18 +9,18 @@ import hashlib
 import threading
 print(sys.executable)
 
-# İndirme geçmişi için dosya
-HISTORY_FILE = "indirme_gecmisi.json"
+# File for download history
+HISTORY_FILE = "download_history.json"
 
 def load_history():
-    """İndirme geçmişini yükle ve klasördeki dosyalarla senkronize et"""
+    """Loads download history and syncs it with files in the folder"""
     history = {"urls": [], "files": []}
     
-    # Script dizinini al
+    # Get the script directory
     script_dir = os.path.dirname(os.path.abspath(__file__))
     history_file = os.path.join(script_dir, HISTORY_FILE)
     
-    # Önce kayıtlı geçmişi yükle
+    # First, load the saved history
     if os.path.exists(history_file):
         try:
             with open(history_file, 'r', encoding='utf-8') as f:
@@ -28,32 +28,32 @@ def load_history():
         except:
             pass
     
-    # Müzikler klasöründeki dosyaları tara
-    music_folder = os.path.join(script_dir, "Müzikler")
+    # Scan the files in the Music folder
+    music_folder = os.path.join(script_dir, "Music")
     if os.path.exists(music_folder):
         existing_files = set(history.get("files", []))
         
         for file in os.listdir(music_folder):
             if any(ext in file.lower() for ext in ['.m4a', '.mp3', '.webm', '.opus', '.wav', '.mp4']):
                 if file not in existing_files:
-                    # Yeni dosya bulundu, geçmişe ekle
+                    # New file found, add to history
                     history["files"].append(file)
         
-        # Geçmişte olup da klasörde olmayan dosyaları kaldır
+        # Remove files from history that are no longer in the folder
         history["files"] = [f for f in history["files"] if os.path.exists(os.path.join(music_folder, f))]
     
     return history
 
 def save_history(history):
-    """İndirme geçmişini kaydet ve klasörle senkronize et"""
-    # Script dizinini al
+    """Saves the download history and syncs it with the folder"""
+    # Get the script directory
     script_dir = os.path.dirname(os.path.abspath(__file__))
     history_file = os.path.join(script_dir, HISTORY_FILE)
     
-    # Önce klasör taraması yap
-    music_folder = os.path.join(script_dir, "Müzikler")
+    # First, scan the folder
+    music_folder = os.path.join(script_dir, "Music")
     if os.path.exists(music_folder):
-        # Geçmişte olup da klasörde olmayan dosyaları kaldır
+        # Remove files from history that are no longer in the folder
         history["files"] = [f for f in history["files"] if os.path.exists(os.path.join(music_folder, f))]
     
     try:
@@ -63,95 +63,95 @@ def save_history(history):
         pass
 
 def update_history_display():
-    """Geçmiş görüntüsünü güncelle"""
+    """Updates the history display"""
     history = load_history()
     music_count = len(history["files"])
     
-    # Alt kısımdaki sayaç labelını güncelle
-    count_label.config(text=f"Toplam İndirilen Müzik: {music_count}")
+    # Update the counter label at the bottom
+    count_label.config(text=f"Total Music Downloaded: {music_count}")
     
-    # Müzik listesini güncelle (gizli)
+    # Update the music list (hidden)
     history_text.delete(1.0, tk.END)
     if history["files"]:
-        for i, file_name in enumerate(reversed(history["files"][-20:]), 1):  # Son 20 müzik
+        for i, file_name in enumerate(reversed(history["files"][-20:]), 1):  # Last 20 songs
             history_text.insert(tk.END, f"{i}. {file_name}\n")
 
 def toggle_history():
-    """Müzik listesini göster/gizle"""
+    """Shows/hides the music list"""
     if history_frame.winfo_viewable():
         history_frame.pack_forget()
-        toggle_button.config(text="📂 Müzik Listesi")
+        toggle_button.config(text="📂 Music List")
     else:
         history_frame.pack(pady=5, padx=10, fill=tk.BOTH, expand=True)
-        toggle_button.config(text="📂 Listeyi Gizle")
+        toggle_button.config(text="📂 Hide List")
 
 def download_and_convert():
     """
-    Kullanıcının girdiği YouTube URL'sini indirir ve MP3'e dönüştürür.
-    Threading ile arka planda çalışır.
+    Downloads the YouTube URL entered by the user and converts it to MP3.
+    Runs in the background using threading.
     """
     url = url_entry.get()
     if not url:
-        messagebox.showerror("Hata", "Lütfen bir YouTube URL'si girin.")
+        messagebox.showerror("Error", "Please enter a YouTube URL.")
         return
     
-    # URL'nin daha önce indirilip indirilmediğini kontrol et
+    # Check if the URL has been downloaded before
     history = load_history()
     url_hash = hashlib.md5(url.encode()).hexdigest()
     
     if url_hash in history["urls"]:
-        result = messagebox.askyesno("Uyarı", "Bu video daha önce indirilmiş!\n\nYine de indirmek istiyor musunuz?")
+        result = messagebox.askyesno("Warning", "This video has been downloaded before!\n\nDo you still want to download it?")
         if not result:
             return
     
-    # İndirme butonunu devre dışı bırak
-    download_button.config(state='disabled', text="⏳ İndiriliyor")
-    status_label.config(text="Başlatılıyor...")
+    # Disable the download button
+    download_button.config(state='disabled', text="⏳ Downloading")
+    status_label.config(text="Starting...")
     
-    # Arka planda çalıştır
+    # Run in the background
     thread = threading.Thread(target=download_worker, args=(url, url_hash))
     thread.daemon = True
     thread.start()
 
 def download_worker(url, url_hash):
-    """Arka planda indirme işlemini yapar"""
+    """Performs the download in the background"""
     def progress_hook(d):
         """yt-dlp progress hook"""
         try:
             if d['status'] == 'downloading':
                 if 'total_bytes' in d and d['total_bytes']:
                     percent = (d['downloaded_bytes'] / d['total_bytes']) * 100
-                    root.after(0, lambda p=percent: update_progress(p, f"İndiriliyor... {p:.1f}%"))
+                    root.after(0, lambda p=percent: update_progress(p, f"Downloading... {p:.1f}%"))
                 elif '_percent_str' in d:
                     percent_str = d['_percent_str'].replace('%', '')
                     try:
                         percent = float(percent_str)
-                        root.after(0, lambda p=percent: update_progress(p, f"İndiriliyor... {p:.1f}%"))
+                        root.after(0, lambda p=percent: update_progress(p, f"Downloading... {p:.1f}%"))
                     except:
-                        root.after(0, lambda: update_progress(50, "İndiriliyor..."))
+                        root.after(0, lambda: update_progress(50, "Downloading..."))
                 else:
-                    root.after(0, lambda: update_progress(50, "İndiriliyor..."))
+                    root.after(0, lambda: update_progress(50, "Downloading..."))
             elif d['status'] == 'finished':
-                root.after(0, lambda: update_progress(100, "İşleniyor..."))
+                root.after(0, lambda: update_progress(100, "Processing..."))
             elif d['status'] == 'error':
-                root.after(0, lambda: update_progress(0, "Hata oluştu..."))
+                root.after(0, lambda: update_progress(0, "An error occurred..."))
         except Exception:
-            # Progress hook hatalarını sessizce geç
+            # Silently pass progress hook errors
             pass
     
     try:
-        # UI güncelleme - thread-safe
-        root.after(0, lambda: status_label.config(text="Video bilgileri alınıyor..."))
+        # UI update - thread-safe
+        root.after(0, lambda: status_label.config(text="Getting video information..."))
         root.after(0, lambda: progress_bar.pack(pady=10, before=status_label))
-        root.after(0, lambda: update_progress(0, "Hazırlanıyor..."))
+        root.after(0, lambda: update_progress(0, "Preparing..."))
 
-        # Müzikler klasörü oluştur - program neredeyse orada
+        # Create the Music folder - where the program is located
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        music_folder = os.path.join(script_dir, "Müzikler")
+        music_folder = os.path.join(script_dir, "Music")
         if not os.path.exists(music_folder):
             os.makedirs(music_folder)
 
-        # yt-dlp ile en yüksek kalitede ses indirme (MP3 öncelikli - araba teypi uyumluluğu)
+        # Download best quality audio with yt-dlp (MP3 first for car player compatibility)
         ydl_opts = {
             'format': 'bestaudio[ext=mp3]/bestaudio[ext=m4a]/bestaudio/best',
             'outtmpl': f'{music_folder}/%(title)s.%(ext)s',
@@ -161,23 +161,23 @@ def download_worker(url, url_hash):
             'retries': 3,
             'fragment_retries': 3,
             'ignoreerrors': False,
-            # FFmpeg olmadan çalışsın
+            # Works without FFmpeg
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             title = info.get('title', 'Unknown')
             
-            # UI güncelleme
-            root.after(0, lambda: status_label.config(text=f"'{title}' indiriliyor..."))
+            # UI update
+            root.after(0, lambda: status_label.config(text=f"Downloading '{title}'..."))
             
-            # Direkt ses dosyası olarak indir
+            # Download as an audio file directly
             ydl.download([url])
             
-            # İndirilen dosyayı bul - daha güçlü algoritma
+            # Find the downloaded file - more robust algorithm
             new_file = None
             
-            # Önce klasördeki tüm ses dosyalarını listele (mp4 de dahil)
+            # First, list all audio files in the folder (including mp4)
             all_audio_files = []
             for file in os.listdir(music_folder):
                 if any(ext in file.lower() for ext in ['.m4a', '.mp3', '.webm', '.opus', '.wav', '.mp4']):
@@ -186,11 +186,11 @@ def download_worker(url, url_hash):
                     all_audio_files.append((file, file_path, file_time))
             
             if all_audio_files:
-                # En son oluşturulan dosyayı al
+                # Get the most recently created file
                 all_audio_files.sort(key=lambda x: x[2], reverse=True)
                 new_file = all_audio_files[0][1]
                 
-                # Eğer title ile eşleşen dosya varsa onu tercih et
+                # If a file matching the title exists, prefer it
                 safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).rstrip()
                 for file, file_path, _ in all_audio_files:
                     if (safe_title.lower() in file.lower() or 
@@ -200,44 +200,44 @@ def download_worker(url, url_hash):
                         break
             
             if new_file and os.path.exists(new_file):
-                # Eğer dosya .m4a veya .mp4 ise, .mp3 uzantısına çevir (araba teypi uyumluluğu için)
+                # If the file is .m4a or .mp4, convert it to .mp3 (for car player compatibility)
                 if new_file.lower().endswith(('.m4a', '.mp4')):
                     mp3_file = new_file.rsplit('.', 1)[0] + '.mp3'
                     try:
                         os.rename(new_file, mp3_file)
                         new_file = mp3_file
-                        root.after(0, lambda: update_progress(100, "MP3'e dönüştürüldü ✅"))
+                        root.after(0, lambda: update_progress(100, "Converted to MP3 ✅"))
                     except Exception as rename_error:
-                        # Rename başarısız olursa orijinal dosyayı kullan
-                        root.after(0, lambda: update_progress(100, "İndirme tamamlandı ✅"))
+                        # If rename fails, use the original file
+                        root.after(0, lambda: update_progress(100, "Download complete ✅"))
                 
-                # Geçmişi güncelle
+                # Update history
                 history = load_history()
                 history["urls"].append(url_hash)
                 history["files"].append(os.path.basename(new_file))
                 save_history(history)
                 
-                # UI güncellemelerini ana thread'de yap
+                # Make UI updates on the main thread
                 root.after(0, lambda: finish_download_success(new_file))
             else:
-                # Debug: Klasördeki dosyaları listele
+                # Debug: List files in the folder
                 debug_files = []
                 if os.path.exists(music_folder):
                     debug_files = [f for f in os.listdir(music_folder) 
                                  if any(ext in f.lower() for ext in ['.m4a', '.mp3', '.webm', '.opus', '.wav', '.mp4'])]
                 
-                error_msg = f"İndirilen dosya bulunamadı!\n\nAranan başlık: {title}\nKlasördeki dosyalar: {len(debug_files)}\n"
+                error_msg = f"Downloaded file not found!\n\nSearched title: {title}\nFiles in folder: {len(debug_files)}\n"
                 if debug_files:
-                    error_msg += f"Son dosya: {debug_files[-1] if debug_files else 'Yok'}"
+                    error_msg += f"Last file: {debug_files[-1] if debug_files else 'None'}"
                 
                 root.after(0, lambda: finish_download_error(error_msg))
 
     except Exception as e:
-        error_msg = f"Bir hata oluştu:\n{str(e)}"
+        error_msg = f"An error occurred:\n{str(e)}"
         root.after(0, lambda: finish_download_error(error_msg))
 
 def update_progress(percent, text):
-    """Progress bar'ı güncelle"""
+    """Updates the progress bar"""
     try:
         progress_bar['value'] = percent
         status_label.config(text=text)
@@ -246,31 +246,31 @@ def update_progress(percent, text):
         pass
 
 def show_success_popup(file_name, file_path):
-    """Özel başarı pop-up penceresi"""
+    """Custom success pop-up window"""
     popup = tk.Toplevel(root)
-    popup.title("✅ Başarılı!")
+    popup.title("✅ Success!")
     popup.geometry("550x350")
     popup.configure(bg='#000000')
     popup.resizable(False, False)
     
-    # Pencereyi ortalama
+    # Center the window
     popup.transient(root)
     popup.grab_set()
     
-    # Ana pencereye göre ortala
+    # Center relative to the main window
     popup.geometry("+{}+{}".format(
         root.winfo_rootx() + 25,
         root.winfo_rooty() + 25
     ))
     
-    # Başlık
-    title_label = tk.Label(popup, text="🎵 İndirme Tamamlandı!", 
+    # Title
+    title_label = tk.Label(popup, text="🎵 Download Complete!", 
                           font=("Segoe UI", 16, "bold"), 
                           fg="#00FF00", bg='#000000')
     title_label.pack(pady=15)
     
-    # Dosya adı
-    name_label = tk.Label(popup, text=f"Dosya Adı:", 
+    # File name
+    name_label = tk.Label(popup, text=f"File Name:", 
                          font=("Segoe UI", 11, "bold"), 
                          fg="#FFFFFF", bg='#000000')
     name_label.pack(pady=(10, 5))
@@ -281,8 +281,8 @@ def show_success_popup(file_name, file_path):
                               wraplength=500)
     file_name_label.pack(pady=(0, 10))
     
-    # Kayıt yeri
-    location_label = tk.Label(popup, text=f"Kayıt Yeri:", 
+    # Location
+    location_label = tk.Label(popup, text=f"Location:", 
                              font=("Segoe UI", 11, "bold"), 
                              fg="#FFFFFF", bg='#000000')
     location_label.pack(pady=(10, 5))
@@ -293,17 +293,17 @@ def show_success_popup(file_name, file_path):
                          wraplength=500)
     path_label.pack(pady=(0, 20))
     
-    # Butonlar frame
+    # Buttons frame
     button_frame = tk.Frame(popup, bg='#000000')
     button_frame.pack(pady=15, side=tk.BOTTOM)
     
-    # Klasörü aç butonu
+    # Open folder button
     def open_folder():
         import subprocess
         subprocess.Popen(f'explorer /select,"{os.path.abspath(os.path.join(file_path, file_name))}"')
         popup.destroy()
     
-    open_button = tk.Button(button_frame, text="📁 Klasörü Aç", 
+    open_button = tk.Button(button_frame, text="📁 Open Folder", 
                            command=open_folder,
                            bg="#000080", fg="white", 
                            font=("Segoe UI", 10, "bold"),
@@ -312,8 +312,8 @@ def show_success_popup(file_name, file_path):
                            cursor="hand2")
     open_button.pack(side=tk.LEFT, padx=15)
     
-    # Tamam butonu
-    ok_button = tk.Button(button_frame, text="✅ Tamam", 
+    # OK button
+    ok_button = tk.Button(button_frame, text="✅ OK", 
                          command=popup.destroy,
                          bg="#000080", fg="white", 
                          font=("Segoe UI", 10, "bold"),
@@ -322,39 +322,39 @@ def show_success_popup(file_name, file_path):
                          cursor="hand2")
     ok_button.pack(side=tk.LEFT, padx=15)
     
-    # ESC ile kapatma
+    # Close with ESC
     popup.bind('<Escape>', lambda e: popup.destroy())
     popup.focus_set()
 
 def finish_download_success(new_file):
-    """İndirme başarılı olduğunda UI'yi güncelle"""
+    """Updates the UI when the download is successful"""
     update_history_display()
     full_path = os.path.abspath(new_file)
-    status_label.config(text=f"✅ Başarılı! {os.path.basename(new_file)}")
+    status_label.config(text=f"✅ Success! {os.path.basename(new_file)}")
     
-    # Progress bar'ı gizle ve butonu tekrar etkinleştir
+    # Hide the progress bar and re-enable the button
     progress_bar.pack_forget()
-    download_button.config(state='normal', text="🎵 Dönüştür ve İndir")
+    download_button.config(state='normal', text="🎵 Convert and Download")
     
-    # Özel pop-up göster
+    # Show the custom pop-up
     show_success_popup(os.path.basename(new_file), os.path.dirname(full_path))
     url_entry.delete(0, tk.END)
 
 def finish_download_error(error_msg):
-    """İndirme hatası olduğunda UI'yi güncelle"""
-    status_label.config(text="❌ Hata oluştu.")
+    """Updates the UI when a download error occurs"""
+    status_label.config(text="❌ An error occurred.")
     progress_bar.pack_forget()
-    download_button.config(state='normal', text="🎵 Dönüştür ve İndir")
-    messagebox.showerror("Hata", error_msg)
+    download_button.config(state='normal', text="🎵 Convert and Download")
+    messagebox.showerror("Error", error_msg)
 
-# --- Arayüz Kısmı (Tkinter) ---
+# --- Interface Section (Tkinter) ---
 root = tk.Tk()
 root.title("YouTube MP3 Converter")
 root.geometry("700x500")
 root.resizable(True, True)
-root.configure(bg='#000000')  # Düz siyah arka plan
+root.configure(bg='#000000')  # Solid black background
 
-# Progress bar stilini ayarla
+# Set progress bar style
 style = ttk.Style()
 style.theme_use('clam')
 style.configure('Custom.Horizontal.TProgressbar',
@@ -364,8 +364,8 @@ style.configure('Custom.Horizontal.TProgressbar',
                 lightcolor='#000080',
                 darkcolor='#000080')
 
-# URL girişi bölümü - direkt root üzerine
-url_label = tk.Label(root, text="🎵 YouTube Video URL'si:", 
+# URL input section - directly on root
+url_label = tk.Label(root, text="🎵 YouTube Video URL:", 
                     font=("Segoe UI", 14, "bold"), fg="#FFFFFF", bg='#000000')
 url_label.pack(pady=(50, 10))
 
@@ -374,20 +374,20 @@ url_entry = tk.Entry(root, width=65, font=("Consolas", 11), bg='#F0F0F0', fg='#0
                     insertbackground='#000000', selectbackground='#4080FF', selectforeground='#FFFFFF')
 url_entry.pack(pady=10, ipady=8)
 
-# Butonlar bölümü - yan yana ve eşit boyutlu
+# Buttons section - side by side and equal size
 button_frame = tk.Frame(root, bg='#000000')
 button_frame.pack(pady=15)
 
-# Ana indirme butonu - kompakt
-download_button = tk.Button(button_frame, text="🎵 Dönüştür ve İndir", command=download_and_convert, 
+# Main download button - compact
+download_button = tk.Button(button_frame, text="🎵 Convert and Download", command=download_and_convert, 
                            bg="#000080", fg="white", font=("Segoe UI", 10, "bold"), 
                            relief=tk.FLAT, bd=0, width=16, height=2,
                            activebackground="#0000A0", activeforeground="white",
                            cursor="hand2")
 download_button.pack(side=tk.LEFT, padx=5)
 
-# Müzik listesi toggle butonu - kompakt
-toggle_button = tk.Button(button_frame, text="📂 Müzik Listesi", command=toggle_history,
+# Music list toggle button - compact
+toggle_button = tk.Button(button_frame, text="📂 Music List", command=toggle_history,
                          bg="#000080", fg="white", font=("Segoe UI", 10, "bold"),
                          relief=tk.FLAT, bd=0, width=16, height=2,
                          activebackground="#0000A0", activeforeground="white",
@@ -395,29 +395,29 @@ toggle_button = tk.Button(button_frame, text="📂 Müzik Listesi", command=togg
 toggle_button.pack(side=tk.LEFT, padx=5)
 
 def refresh_history():
-    """Klasörü tarayarak geçmişi yenile"""
+    """Refreshes history by scanning the folder"""
     history = load_history()
     save_history(history)
     update_history_display()
-    status_label.config(text="📂 Klasör tarandı!")
-    root.after(2000, lambda: status_label.config(text="Hazır ✨"))
+    status_label.config(text="📂 Folder scanned!")
+    root.after(2000, lambda: status_label.config(text="Ready ✨"))
 
-refresh_button = tk.Button(button_frame, text="🔄 Yenile", command=refresh_history,
+refresh_button = tk.Button(button_frame, text="🔄 Refresh", command=refresh_history,
                           bg="#000080", fg="white", font=("Segoe UI", 10, "bold"),
                           relief=tk.FLAT, bd=0, width=12, height=2,
                           activebackground="#0000A0", activeforeground="white",
                           cursor="hand2")
 refresh_button.pack(side=tk.LEFT, padx=5)
 
-# Progress bar - başlangıçta gizli
+# Progress bar - initially hidden
 progress_bar = ttk.Progressbar(root, length=450, mode='determinate', 
                               style='Custom.Horizontal.TProgressbar')
 
-# Durum yazısı
-status_label = tk.Label(root, text="Hazır ✨", font=("Segoe UI", 11), fg="#FFFFFF", bg='#000000')
+# Status text
+status_label = tk.Label(root, text="Ready ✨", font=("Segoe UI", 11), fg="#FFFFFF", bg='#000000')
 status_label.pack(pady=10)
 
-# Müzik listesi frame
+# Music list frame
 history_frame = tk.Frame(root, bg='#000000')
 
 history_text = scrolledtext.ScrolledText(history_frame, width=70, height=8, font=("Consolas", 9),
@@ -425,21 +425,21 @@ history_text = scrolledtext.ScrolledText(history_frame, width=70, height=8, font
                                        selectbackground="#000080", selectforeground="white")
 history_text.pack(pady=12, padx=15)
 
-# Alt kısım - her zaman en altta kalsın
+# Bottom section - always at the bottom
 bottom_frame = tk.Frame(root, bg='#000000')
 bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=15, padx=15)
 
-# Sol alt köşe - Created by GG
+# Bottom left corner - Created by GG
 created_label = tk.Label(bottom_frame, text="✨ Created by GG", 
                         font=("Segoe UI", 9, "italic"), fg="#888888", bg='#000000')
 created_label.pack(side=tk.LEFT)
 
-# Sağ alt köşe - Sayaç
-count_label = tk.Label(bottom_frame, text="🎵 Toplam İndirilen: 0", 
+# Bottom right corner - Counter
+count_label = tk.Label(bottom_frame, text="🎵 Total Downloaded: 0", 
                       font=("Segoe UI", 10, "bold"), fg="#FFFFFF", bg='#000000')
 count_label.pack(side=tk.RIGHT)
 
-# Başlangıçta geçmişi yükle
+# Load history at startup
 update_history_display()
 
 root.mainloop()
