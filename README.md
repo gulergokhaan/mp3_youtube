@@ -84,7 +84,7 @@ mp3_youtube_donusturucu/
 
 #### 1. Installation
 ```bash
-git clone <repository-url>
+git clone https://github.com/gulergokhaan/youtube_mp3_converter
 cd mp3_youtube_donusturucu
 pip install -r requirements.txt
 ```
@@ -219,3 +219,4 @@ python main.py
 ---
 
 🎵 **YouTube MP3 Converter Pro v2.0** - *Professional, Modern, User-Friendly* ✨
+
